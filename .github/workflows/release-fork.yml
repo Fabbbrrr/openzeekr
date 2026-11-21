@@ -58,7 +58,7 @@ jobs:
           KEY_PASS: ${{ secrets.OZ_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          base64 -d "$KEYSTORE_B64" > "$RUNNER_TEMP/oz.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/oz.keystore"
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
             "$RUNNER_TEMP/oz.keystore" "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > keystore.properties
 
