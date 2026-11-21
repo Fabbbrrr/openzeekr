@@ -21,8 +21,8 @@ android {
         applicationId = "com.openzeekr.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 19
-        versionName = "0.2.7"
+        versionCode = 1901
+        versionName = "0.2.7-fab.1" // FORK-ONLY: <upstream>-fab.<n>; bump both per fork build (FORK-BUILD.md)
         // App-global secrets are baked in :core (SecretsConfig + BuildConfig live there).
     }
 

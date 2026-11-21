@@ -87,6 +87,11 @@ android {
         // Only the RSA password_public_key stays in BuildConfig - it is a PUBLIC key, so hiding it
         // in native would add no security (matches the "public certs/keys stay put" rule).
         buildConfigField("String", "SEC_PASSWORD_PUBLIC_KEY", "\"${bakedSecret("PASSWORD_PUBLIC_KEY")}\"")
+        // FORK-ONLY: update channel. Upstream defaults (property absent -> borconi/openzeekr, no
+        // marker) keep stock behaviour; the fork's gradle.properties opts into its own repo and
+        // requires its releases to carry the marker. See FORK-BUILD.md.
+        buildConfigField("String", "UPDATE_REPO", "\"${providers.gradleProperty("openzeekr.updateRepo").getOrElse("borconi/openzeekr")}\"")
+        buildConfigField("String", "UPDATE_MARKER", "\"${providers.gradleProperty("openzeekr.updateMarker").getOrElse("")}\"")
     }
 
     externalNativeBuild {

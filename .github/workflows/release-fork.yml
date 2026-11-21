@@ -1,0 +1,76 @@
+name: release-fork
+
+# FORK-ONLY workflow (Fab's fork). Push a `v<upstream>-fab.<n>` tag (or run manually) and it
+# builds the release with the fork keystore, publishes a PUBLIC (non-draft) GitHub release, and
+# uploads the APK. The phone app's update check (UpdateChecker) is pointed at this repo with the
+# `fab` marker requirement, so it only ever sees releases published here. See FORK-BUILD.md.
+
+on:
+  push:
+    tags:
+      - "v*-fab*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (must already exist, must carry the fab marker)"
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK packages
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973" "cmake;3.22.1" >/dev/null
+
+      - name: Bake secrets (same gitignored files a local build uses)
+        env:
+          SECRETS_PROPERTIES: ${{ secrets.OZ_SECRETS_PROPERTIES }}
+          FIREBASE_XML: ${{ secrets.OZ_SECRETS_FIREBASE_XML }}
+        run: |
+          set -euo pipefail
+          [ -n "$SECRETS_PROPERTIES" ] && printf '%s\n' "$SECRETS_PROPERTIES" > secrets.properties
+          [ -n "$FIREBASE_XML" ] && printf '%s\n' "$FIREBASE_XML" > core/src/main/res/values/secrets_firebase.xml
+
+      - name: Keystore + keystore.properties
+        env:
+          KEYSTORE_B64: ${{ secrets.OZ_KEYSTORE }}
+          KS_PASS: ${{ secrets.OZ_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.OZ_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.OZ_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          base64 -d "$KEYSTORE_B64" > "$RUNNER_TEMP/oz.keystore"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/oz.keystore" "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > keystore.properties
+
+      - name: Build release
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Publish release (must NOT be a draft — the app's API check never sees drafts)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          BASE_TAG="${TAG%%-fab*}"
+          NOTES="Fork CI build (signed with the fork key). Upstream changelog: https://github.com/borconi/openzeekr/releases/tag/${BASE_TAG}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" --target "$(git rev-list -n1 "$TAG")" --title "OpenZeekr ${TAG#v} (fork)" --notes "$NOTES"
+          fi
