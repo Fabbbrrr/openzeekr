@@ -34,8 +34,12 @@ jobs:
 
       - name: Android SDK packages
         run: |
-          set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973" "cmake;3.22.1" >/dev/null
+          set -eu
+          # `yes |` here can SIGPIPE when nothing needs confirming, which would trip pipefail;
+          # tolerate it and assert the SDK actually has what the build pins instead.
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973" "cmake;3.22.1" >/dev/null || true
+          test -d "$ANDROID_HOME/ndk/27.0.12077973"
+          test -d "$ANDROID_HOME/cmake/3.22.1"
 
       - name: Bake secrets (same gitignored files a local build uses)
         env:
